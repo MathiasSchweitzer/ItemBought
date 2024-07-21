@@ -4,9 +4,11 @@ import math
 #Have to install
 import simpleobsws
 
-async def setImage(ws: simpleobsws.WebSocketClient, url, sceneName, sourceName, enabled = True):
+async def setImage(ws: simpleobsws.WebSocketClient, sceneName, sourceName, url, enabled = True):
     await setInput(ws, sceneName, sourceName, "browser_source", {
-        "url": url
+        "url": url,
+        "width": 64,
+        "height": 64
     }, enabled)
 
 async def setInput(ws: simpleobsws.WebSocketClient, sceneName, sourceName, inputKind, inputSettings = {}, enabled = True):
@@ -72,18 +74,36 @@ async def setText(ws: simpleobsws.WebSocketClient, sceneName, sourceName, text, 
         "bk_opacity": backgroundOpacity
     }, enabled)
 
-async def removeInput(ws: simpleobsws.WebSocketClient, sourceName):
+async def setVisibility(ws: simpleobsws.WebSocketClient, sceneName, sourceName, visibility):
     await ws.connect()
     await ws.wait_until_identified()
+    
+    idRet = await ws.call(simpleobsws.Request("GetSceneItemId", {
+        "sourceName": sourceName,
+        "sceneName": sceneName
+    }))
 
-    removeRet = await ws.call(simpleobsws.Request("RemoveInput", {
-        "inputName": sourceName
+    if not idRet.ok():
+        print(idRet.requestStatus)
+        await ws.disconnect()
+        return
+
+    hideRet = await ws.call(simpleobsws.Request("SetSceneItemEnabled", {
+        "sceneName": sceneName,
+        "sceneItemId": idRet.responseData.get("sceneItemId"),
+        "sceneItemEnabled": visibility
     }))
 
     await ws.disconnect()
 
-    if not removeRet.ok():
-        print(removeRet.requestStatus)
+    if not hideRet.ok():
+        print(hideRet.requestStatus)
+
+async def showSource(ws: simpleobsws.WebSocketClient, sceneName, sourceName):
+    await setVisibility(ws, sceneName, sourceName, True)
+
+async def hideSource(ws: simpleobsws.WebSocketClient, sceneName, sourceName):
+    await setVisibility(ws, sceneName, sourceName, False)
 
 async def setTransform(ws: simpleobsws.WebSocketClient, sceneName, sourceName, align = None, verticalAlign = None, x = None, y = None, rotation = None, cropBottom = None, cropLeft = None, cropRight = None, cropTop = None, width = None, height = None, scaleX = None, scaleY = None):
     await ws.connect()
@@ -162,6 +182,7 @@ async def setTransform(ws: simpleobsws.WebSocketClient, sceneName, sourceName, a
             positionY = transform.get("positionY") - finalHeight / 2 + oldCos * finalHeight / 2 - oldSin * finalWidth / 2
         positionX += finalWidth / 2 - cos * finalWidth / 2 - sin * finalHeight / 2
         positionY += finalHeight / 2 - cos * finalHeight / 2 + sin * finalWidth / 2
+
     if positionX != None:
         options.get("sceneItemTransform")["positionX"] = positionX
 
